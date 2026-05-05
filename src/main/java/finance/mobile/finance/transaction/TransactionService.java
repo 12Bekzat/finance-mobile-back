@@ -4,6 +4,7 @@ import finance.mobile.finance.auth.AuthService;
 import finance.mobile.finance.notification.NotificationService;
 import finance.mobile.finance.transaction.dto.CreateTransactionRequest;
 import finance.mobile.finance.transaction.dto.TransactionResponse;
+import finance.mobile.finance.transaction.dto.UpdateTransactionRequest;
 import finance.mobile.finance.user.UserAccount;
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -59,6 +60,24 @@ public class TransactionService {
         }
 
         return TransactionResponse.from(savedTransaction);
+    }
+
+    @Transactional
+    public TransactionResponse updateTransaction(Long id, UpdateTransactionRequest request) {
+        UserAccount user = authService.getCurrentUserEntity();
+        FinanceTransaction transaction = transactionRepository
+            .findByIdAndUser(id, user)
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Transaction not found."));
+        TransactionType type = parseType(request.type());
+
+        transaction.setTitle(normalizeTitle(request.title()));
+        transaction.setType(type);
+        transaction.setAmount(normalizeAmount(request.amount()));
+        transaction.setCategory(normalizeCategory(request.category(), type));
+        transaction.setPaymentMethod(normalizePaymentMethod(request.paymentMethod()));
+        transaction.setTransactionDate(request.transactionDate() == null ? LocalDate.now() : request.transactionDate());
+
+        return TransactionResponse.from(transactionRepository.save(transaction));
     }
 
     @Transactional

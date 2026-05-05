@@ -3,6 +3,7 @@ package finance.mobile.finance;
 import static org.springframework.security.test.web.servlet.setup.SecurityMockMvcConfigurers.springSecurity;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -57,7 +58,7 @@ class FinanceDataIntegrationTest {
 
         String token = JsonPath.read(registerResult.getResponse().getContentAsString(), "$.token");
 
-        mockMvc
+        MvcResult incomeResult = mockMvc
             .perform(
                 post("/api/transactions")
                     .header("Authorization", "Bearer " + token)
@@ -76,7 +77,30 @@ class FinanceDataIntegrationTest {
             .andExpect(status().isCreated())
             .andExpect(jsonPath("$.title").value("Salary"))
             .andExpect(jsonPath("$.type").value("income"))
-            .andExpect(jsonPath("$.amount").value(3500.00));
+            .andExpect(jsonPath("$.amount").value(3500.00))
+            .andReturn();
+
+        Number incomeId = JsonPath.read(incomeResult.getResponse().getContentAsString(), "$.id");
+
+        mockMvc
+            .perform(
+                put("/api/transactions/" + incomeId.longValue())
+                    .header("Authorization", "Bearer " + token)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content("""
+                        {
+                          "title": "Paycheck",
+                          "amount": 3600,
+                          "type": "income",
+                          "category": "Salary",
+                          "paymentMethod": "Bank Transfer",
+                          "transactionDate": "2026-03-28"
+                        }
+                        """)
+            )
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.title").value("Paycheck"))
+            .andExpect(jsonPath("$.amount").value(3600.00));
 
         mockMvc
             .perform(
@@ -101,7 +125,7 @@ class FinanceDataIntegrationTest {
             .perform(get("/api/transactions").header("Authorization", "Bearer " + token))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$[0].title").value("Groceries"))
-            .andExpect(jsonPath("$[1].title").value("Salary"));
+            .andExpect(jsonPath("$[1].title").value("Paycheck"));
 
         MvcResult goalResult = mockMvc
             .perform(
@@ -124,24 +148,42 @@ class FinanceDataIntegrationTest {
 
         mockMvc
             .perform(
+                put("/api/goals/" + goalId.longValue())
+                    .header("Authorization", "Bearer " + token)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content("""
+                        {
+                          "title": "Emergency Fund Plus",
+                          "targetAmount": 1200,
+                          "daysLeft": 90
+                        }
+                        """)
+            )
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.title").value("Emergency Fund Plus"))
+            .andExpect(jsonPath("$.targetAmount").value(1200.00))
+            .andExpect(jsonPath("$.status").value("active"));
+
+        mockMvc
+            .perform(
                 post("/api/goals/" + goalId.longValue() + "/contributions")
                     .header("Authorization", "Bearer " + token)
                     .contentType(MediaType.APPLICATION_JSON)
                     .content("""
                         {
-                          "amount": 1000
+                          "amount": 1200
                         }
                         """)
             )
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.status").value("completed"))
-            .andExpect(jsonPath("$.savedAmount").value(1000.00));
+            .andExpect(jsonPath("$.savedAmount").value(1200.00));
 
         mockMvc
             .perform(get("/api/goals").header("Authorization", "Bearer " + token))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.active").isEmpty())
-            .andExpect(jsonPath("$.completed[0].title").value("Emergency Fund"));
+            .andExpect(jsonPath("$.completed[0].title").value("Emergency Fund Plus"));
 
         mockMvc
             .perform(

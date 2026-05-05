@@ -5,6 +5,7 @@ import finance.mobile.finance.goal.dto.AddGoalContributionRequest;
 import finance.mobile.finance.goal.dto.CreateGoalRequest;
 import finance.mobile.finance.goal.dto.GoalResponse;
 import finance.mobile.finance.goal.dto.GoalsEnvelope;
+import finance.mobile.finance.goal.dto.UpdateGoalRequest;
 import finance.mobile.finance.notification.NotificationService;
 import finance.mobile.finance.user.UserAccount;
 import java.math.BigDecimal;
@@ -85,6 +86,32 @@ public class GoalService {
         }
 
         return GoalResponse.from(savedGoal);
+    }
+
+    @Transactional
+    public GoalResponse updateGoal(Long id, UpdateGoalRequest request) {
+        UserAccount user = authService.getCurrentUserEntity();
+        Goal goal = goalRepository
+            .findByIdAndUser(id, user)
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Goal not found."));
+
+        BigDecimal targetAmount = normalizeMoney(request.targetAmount());
+        goal.setTitle(normalizeTitle(request.title()));
+        goal.setTargetAmount(targetAmount);
+        goal.setTargetDate(LocalDate.now().plusDays(request.daysLeft()));
+
+        if (goal.getSavedAmount().compareTo(targetAmount) >= 0) {
+            goal.setSavedAmount(targetAmount);
+            goal.setStatus(GoalStatus.COMPLETED);
+            if (goal.getCompletedAt() == null) {
+                goal.setCompletedAt(Instant.now());
+            }
+        } else {
+            goal.setStatus(GoalStatus.ACTIVE);
+            goal.setCompletedAt(null);
+        }
+
+        return GoalResponse.from(goalRepository.save(goal));
     }
 
     @Transactional
